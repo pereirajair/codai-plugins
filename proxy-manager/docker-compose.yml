@@ -1,0 +1,20 @@
+services:
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: ${PROXY_CONTAINER:-codai_nginx_proxy}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - proxy-data:/etc/nginx/conf.d
+    networks:
+      - codai_net
+
+volumes:
+  proxy-data:
+
+networks:
+  codai_net:
+    driver: bridge
+    name: ${CODAI_NETWORK:-nginx-proxy_net}

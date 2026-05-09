@@ -1,23 +1,25 @@
 #!/bin/bash
-# Worktree Manager — codai-plugins
+# worktree-manager — Gerencia instâncias docker-compose e git worktrees.
 #
-# Gerencia instâncias docker-compose + git worktrees com MySQL compartilhado.
-# Cada instância tem seu próprio banco dentro do mesmo MySQL container.
-# Ao iniciar um worktree, o banco é criado e populado com dump da instância main.
+# Pré-requisitos (gerenciados por plugins separados):
+#   proxy-manager start   → inicia nginx-proxy e cria a rede compartilhada
+#   mysql-manager start   → inicia o MySQL compartilhado
 #
 # Uso:
 #   ./run.sh list                        # lista instâncias e status
 #   ./run.sh start [main|<nome>]         # cria banco, dumpa main→instância, sobe containers
 #   ./run.sh stop  [main|<nome>]         # para containers (banco persiste)
-#   ./run.sh logs  [main|<nome>]         # segue logs
 #   ./run.sh restart [main|<nome>]       # para e sobe novamente
+#   ./run.sh logs  [main|<nome>]         # segue logs
 #   ./run.sh create-worktree <nome>      # cria worktree git + branch + env file
 #   ./run.sh remove-worktree <nome>      # para containers + remove worktree + apaga banco
 #
 # Variáveis de configuração (com defaults):
-#   CODAI_MYSQL_CONTAINER  — nome do container MySQL compartilhado (padrão: codai_db)
-#   CODAI_MYSQL_ROOT_PASS  — senha root do MySQL (padrão: secret)
-#   CODAI_MAIN_DB          — banco fonte para snapshot ao criar worktree (padrão: codai_main)
+#   MYSQL_CONTAINER   — container MySQL (padrão: codai_db)
+#   MYSQL_ROOT_PASS   — senha root MySQL (padrão: secret)
+#   MYSQL_MAIN_DB     — banco fonte para snapshots (padrão: codai_main)
+#   PROXY_CONTAINER   — container nginx-proxy (padrão: codai_nginx_proxy)
+#   PROJECT_PREFIX    — prefixo do projeto docker compose (padrão: codai-dev)
 
 set -euo pipefail
 
@@ -26,9 +28,11 @@ INSTANCE="${2:-}"
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 
-MYSQL_CONTAINER="${CODAI_MYSQL_CONTAINER:-codai_db}"
-MYSQL_ROOT_PASS="${CODAI_MYSQL_ROOT_PASS:-secret}"
-MAIN_DB="${CODAI_MAIN_DB:-codai_main}"
+MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
+MYSQL_ROOT_PASS="${MYSQL_ROOT_PASS:-secret}"
+MYSQL_MAIN_DB="${MYSQL_MAIN_DB:-codai_main}"
+PROXY_CONTAINER="${PROXY_CONTAINER:-codai_nginx_proxy}"
+PROJECT_PREFIX="${PROJECT_PREFIX:-codai-dev}"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,21 +63,24 @@ db_name_for() {
     if [ -z "$db_name" ]; then
         local safe
         safe=$(echo "$name" | tr '-' '_' | tr '[:upper:]' '[:lower:]')
-        db_name="${MAIN_DB%%_*}_$safe"
+        db_name="${MYSQL_MAIN_DB%%_*}_$safe"
     fi
     echo "$db_name"
 }
 
+mysql_running() {
+    docker ps --filter "name=^${MYSQL_CONTAINER}$" --format '{{.Names}}' | grep -q "^${MYSQL_CONTAINER}$"
+}
+
+proxy_running() {
+    docker ps --filter "name=^${PROXY_CONTAINER}$" --format '{{.Names}}' | grep -q "^${PROXY_CONTAINER}$"
+}
+
 require_mysql() {
-    if ! docker ps --filter "name=^${MYSQL_CONTAINER}$" --format '{{.Names}}' | grep -q "^${MYSQL_CONTAINER}$"; then
-        echo "MySQL (${MYSQL_CONTAINER}) não está rodando."
-        echo "Iniciando infraestrutura..."
-        docker compose -f "$BASE_DIR/nginx-proxy/docker-compose.yml" up -d
-        echo "Aguardando MySQL ficar pronto..."
-        until docker exec "$MYSQL_CONTAINER" mysqladmin ping -uroot -p"$MYSQL_ROOT_PASS" --silent 2>/dev/null; do
-            sleep 2
-        done
-        echo "MySQL pronto."
+    if ! mysql_running; then
+        echo "Erro: MySQL (${MYSQL_CONTAINER}) não está rodando."
+        echo "      Execute: mysql-manager/run.sh start"
+        exit 1
     fi
 }
 
@@ -88,14 +95,23 @@ dump_main_to() {
     local dest_db="$1"
     local table_count
     table_count=$(docker exec "$MYSQL_CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASS" -sN \
-        -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$MAIN_DB';" 2>/dev/null || echo 0)
+        -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$MYSQL_MAIN_DB';" 2>/dev/null || echo 0)
     if [ "$table_count" -gt 0 ]; then
-        echo "Copiando $MAIN_DB → $dest_db..."
+        echo "Copiando $MYSQL_MAIN_DB → $dest_db..."
         docker exec "$MYSQL_CONTAINER" sh -c \
-            "mysqldump -uroot -p'$MYSQL_ROOT_PASS' \`$MAIN_DB\` | mysql -uroot -p'$MYSQL_ROOT_PASS' \`$dest_db\`"
-        echo "Banco $dest_db atualizado com snapshot de $MAIN_DB."
+            "mysqldump -uroot -p'$MYSQL_ROOT_PASS' \`$MYSQL_MAIN_DB\` | mysql -uroot -p'$MYSQL_ROOT_PASS' \`$dest_db\`"
+        echo "Banco $dest_db atualizado com snapshot de $MYSQL_MAIN_DB."
     else
-        echo "$MAIN_DB está vazio — $dest_db iniciará com banco limpo (migrações serão aplicadas pelo backend)."
+        echo "$MYSQL_MAIN_DB está vazio — $dest_db iniciará com banco limpo."
+    fi
+}
+
+proxy_connect() {
+    local name="$1"
+    local net="${PROJECT_PREFIX}-${name}_default"
+    if proxy_running && docker network ls --format '{{.Name}}' | grep -q "^${net}$"; then
+        docker network connect "$net" "$PROXY_CONTAINER" 2>/dev/null || true
+        docker exec "$PROXY_CONTAINER" nginx -s reload 2>/dev/null || true
     fi
 }
 
@@ -104,7 +120,7 @@ compose_up() {
     local env_f
     env_f="$(env_file "$name")"
     docker compose \
-        --project-name "codai-dev-$name" \
+        --project-name "${PROJECT_PREFIX}-$name" \
         -f "$COMPOSE_FILE" \
         --env-file "$env_f" \
         up --build -d
@@ -115,7 +131,7 @@ compose_down() {
     local env_f
     env_f="$(env_file "$name")"
     docker compose \
-        --project-name "codai-dev-$name" \
+        --project-name "${PROJECT_PREFIX}-$name" \
         -f "$COMPOSE_FILE" \
         --env-file "$env_f" \
         down 2>/dev/null || true
@@ -130,12 +146,19 @@ case "$ACTION" in
     list)
         echo "=== Instâncias ==="
         echo ""
-        if docker ps --filter "name=^${MYSQL_CONTAINER}$" --format '{{.Names}}' | grep -q "^${MYSQL_CONTAINER}$"; then
-            echo "  MySQL (${MYSQL_CONTAINER})  running  → localhost"
+
+        if mysql_running; then
+            echo "  MySQL (${MYSQL_CONTAINER})   running"
         else
-            echo "  MySQL (${MYSQL_CONTAINER})  stopped  (inicie: cd nginx-proxy && docker compose up -d)"
+            echo "  MySQL (${MYSQL_CONTAINER})   stopped  ← execute mysql-manager/run.sh start"
+        fi
+        if proxy_running; then
+            echo "  Proxy (${PROXY_CONTAINER})   running"
+        else
+            echo "  Proxy (${PROXY_CONTAINER})   stopped  ← execute proxy-manager/run.sh start"
         fi
         echo ""
+
         shopt -s nullglob
         for env_f in "$BASE_DIR/.env.base" "$BASE_DIR"/.env.worktree-*; do
             [ -f "$env_f" ] || continue
@@ -144,7 +167,7 @@ case "$ACTION" in
             else
                 name="${env_f##*/.env.worktree-}"
             fi
-            project="codai-dev-$name"
+            project="${PROJECT_PREFIX}-$name"
             db=$(db_name_for "$name")
             running=$(docker compose --project-name "$project" -f "$COMPOSE_FILE" --env-file "$env_f" ps --status running -q 2>/dev/null | wc -l | tr -d ' ')
             if [ "$running" -gt 0 ]; then
@@ -160,12 +183,12 @@ case "$ACTION" in
             else
                 extra="db: $db  worktree ausente"
             fi
-            printf "  %-12s %s  %s\n" "$name" "$status" "$extra"
+            printf "  %-12s  %s  %s\n" "$name" "$status" "$extra"
         done
         echo ""
         echo "Comandos:"
         echo "  ./run.sh create-worktree <nome>   cria worktree"
-        echo "  ./run.sh start <nome>              inicia"
+        echo "  ./run.sh start <nome>              inicia instância"
         echo "  ./run.sh stop  <nome>              para containers"
         echo "  ./run.sh remove-worktree <nome>    remove tudo"
         ;;
@@ -189,11 +212,14 @@ case "$ACTION" in
 
         echo "Subindo containers da instância '$INSTANCE'..."
         compose_up "$INSTANCE"
+
+        proxy_connect "$INSTANCE"
+
         echo ""
         echo "Instância '$INSTANCE' iniciada!"
         echo "  → http://${INSTANCE}.frontend.localhost"
         echo "  → http://${INSTANCE}.backend.localhost"
-        echo "  DB: $DB (compartilhado em ${MYSQL_CONTAINER})"
+        echo "  DB: $DB"
         ;;
 
     stop)
@@ -207,7 +233,7 @@ case "$ACTION" in
         INSTANCE="${INSTANCE:-main}"
         ENV_FILE="$(env_file "$INSTANCE")"
         docker compose \
-            --project-name "codai-dev-$INSTANCE" \
+            --project-name "${PROJECT_PREFIX}-$INSTANCE" \
             -f "$COMPOSE_FILE" \
             --env-file "$ENV_FILE" \
             logs -f
@@ -230,10 +256,10 @@ case "$ACTION" in
         WORKTREE_PATH="$BASE_DIR/.worktrees/$NAME"
         ENV_FILE="$(env_file "$NAME")"
         SAFE=$(echo "$NAME" | tr '-' '_' | tr '[:upper:]' '[:lower:]')
-        DB="${MAIN_DB%%_*}_$SAFE"
+        DB="${MYSQL_MAIN_DB%%_*}_$SAFE"
 
         if [ -f "$ENV_FILE" ]; then
-            echo "$ENV_FILE já existe — pulando criação."
+            echo "$ENV_FILE já existe — pulando."
         else
             printf 'INSTANCE_NAME=%s\nDB_NAME=%s\n' "$NAME" "$DB" > "$ENV_FILE"
             echo "Env criado: $ENV_FILE  (banco: $DB)"
@@ -272,7 +298,7 @@ case "$ACTION" in
         echo "Parando containers da instância '$NAME'..."
         compose_down "$NAME"
 
-        if docker ps --filter "name=^${MYSQL_CONTAINER}$" --format '{{.Names}}' | grep -q "^${MYSQL_CONTAINER}$"; then
+        if mysql_running; then
             docker exec "$MYSQL_CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASS" \
                 -e "DROP DATABASE IF EXISTS \`$DB\`;" 2>/dev/null && \
                 echo "Banco $DB removido."
