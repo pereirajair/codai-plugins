@@ -16,36 +16,47 @@ Cada plugin é um diretório raiz com:
 
 ## Plugins disponíveis
 
-| Plugin | Descrição | Ordem de start |
-|--------|-----------|----------------|
-| `proxy-manager` | nginx-proxy + rede Docker compartilhada | 1º |
-| `mysql-manager` | MySQL 8.0 compartilhado entre instâncias | 2º |
-| `worktree-manager` | Instâncias Docker + git worktrees da app | 3º |
-
-## Startup completo do ambiente
-
-```bash
-proxy-manager/run.sh start       # cria rede + sobe nginx-proxy
-mysql-manager/run.sh start       # sobe MySQL (entra na rede criada pelo proxy)
-worktree-manager/run.sh start    # sobe instância main da app
-```
+| Plugin | Descrição |
+|--------|-----------|
+| `codai` | Orquestrador — roteia comandos para os outros plugins |
+| `proxy-manager` | nginx-proxy + rede Docker compartilhada |
+| `mysql-manager` | MySQL 8.0 compartilhado entre instâncias |
+| `postgres-manager` | PostgreSQL 16 compartilhado entre instâncias |
+| `redis-manager` | Redis 7 compartilhado entre instâncias |
+| `worktree-manager` | Instâncias Docker + git worktrees da app |
 
 ## Usar um plugin no seu projeto
 
 ### Claude Code
 Copie o `SKILL.md` para `.claude/skills/<slug>/SKILL.md` no projeto.
 
-### OpenCode / clawhub
+### OpenCode / clawhub — instalar do registry
 ```bash
 clawhub install <slug>
 ```
 
+## Publicar no registry (clawhub sync)
+
+O `clawhub sync` **não escaneia o diretório atual** por padrão — use a flag `--root`:
+
+```bash
+# dry-run (ver o que seria publicado)
+npx clawhub sync --root ~/path/to/codai-plugins --dry-run
+
+# publicar de fato
+npx clawhub sync --root ~/path/to/codai-plugins
+```
+
+> **Não use** `clawhub publish <path>` (alias legacy) — ele exige `--version` explícito
+> e não lê o frontmatter do SKILL.md. Use sempre `clawhub sync --root`.
+
 ## Publicar atualização
 
-1. Atualize `version` em `_meta.json` e no frontmatter do `SKILL.md`
+1. Atualize `version` no frontmatter do `SKILL.md` (ex: `1.0.0` → `1.1.0`)
 2. Atualize `changelog` no frontmatter do `SKILL.md`
 3. Atualize `publishedAt` em `_meta.json` (timestamp Unix em ms)
 4. Commit + push
+5. `npx clawhub sync --root ~/path/to/codai-plugins`
 
 ## Regras
 
