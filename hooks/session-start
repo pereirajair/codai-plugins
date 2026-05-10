@@ -8,11 +8,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Build plugin script path table from directories that contain a run.sh
+# Build plugin script path table from skills/ subdirectories that contain a run.sh
 plugin_lines=""
-for dir in "$PLUGIN_ROOT"/*/; do
+for dir in "$PLUGIN_ROOT"/skills/*/; do
     slug="$(basename "$dir")"
-    script="${PLUGIN_ROOT}/${slug}/run.sh"
+    script="${PLUGIN_ROOT}/skills/${slug}/run.sh"
     if [ -f "$script" ]; then
         plugin_lines="${plugin_lines}  ${slug}: ${script}\n"
     fi

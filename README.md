@@ -34,12 +34,21 @@ redis-commander start     # http://localhost:8083
 
 ## Instalar no Claude Code
 
-### Via clawhub (recomendado)
+### Como plugin completo (com hooks — recomendado)
 
 ```bash
-clawhub install <slug>
+claude plugin marketplace add pereirajair/codai-plugins
+claude plugin install codai-plugins
+```
+
+Instala todas as skills e ativa o hook que injeta os caminhos absolutos dos scripts em toda sessão.
+
+### Via clawhub (skill avulsa)
+
+```bash
+npx clawhub install <slug>
 # exemplo:
-clawhub install mysql-manager
+npx clawhub install mysql-manager
 ```
 
 ### Manualmente
@@ -54,10 +63,10 @@ Cada plugin tem um `run.sh` que gerencia o container Docker. Quando instalado vi
 
 ```bash
 # dry-run
-npx clawhub sync --root ~/path/to/codai-plugins --dry-run
+npx clawhub sync --root ~/path/to/codai-plugins/skills --dry-run
 
 # publicar
-npx clawhub sync --root ~/path/to/codai-plugins
+npx clawhub sync --root ~/path/to/codai-plugins/skills
 ```
 
 ### Publicar uma atualização
