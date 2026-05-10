@@ -1,9 +1,9 @@
 ---
 name: worktree-manager
 slug: worktree-manager
-version: 1.3.0
+version: 1.4.0
 description: "Manage Docker-based dev instances and git worktrees. Handles app container lifecycle, database seeding, and proxy route activation. Requires mysql-manager and proxy-manager to be running first."
-changelog: "v1.3.0: Fix dump_main_to to avoid sh -c/backtick shell injection (two docker exec), validate DB names before all SQL ops, validate instance name on all commands, align password var with MYSQL_ROOT_PASSWORD. v1.2.0: Validate instance names, add remove-worktree confirmation, warn on default password. v1.1.0: Split MySQL and proxy lifecycle into separate plugins."
+changelog: "v1.4.0: Write WORKTREE_PATH to env file on create-worktree; warn when docker-compose.yml does not use WORKTREE_PATH (bug that caused worktree containers to mount the main project dir). v1.3.0: Fix dump_main_to to avoid sh -c/backtick shell injection (two docker exec), validate DB names before all SQL ops, validate instance name on all commands, align password var with MYSQL_ROOT_PASSWORD. v1.2.0: Validate instance names, add remove-worktree confirmation, warn on default password. v1.1.0: Split MySQL and proxy lifecycle into separate plugins."
 triggers:
   - "start instance"
   - "stop instance"
@@ -46,6 +46,22 @@ project/
 - `main` → `.env.base`, project root
 - `worktree` → `.env.worktree-<name>`, checked out at `.worktrees/<name>`
 - URLs: `http://<name>.frontend.localhost` / `http://<name>.backend.localhost`
+
+### docker-compose.yml — volume mounts obrigatórios
+
+O `docker-compose.yml` do projeto **deve** usar `${WORKTREE_PATH:-.}` nos volumes de backend e frontend. Sem isso, todos os worktrees montam o diretório principal em vez do worktree correto.
+
+```yaml
+services:
+  backend:
+    volumes:
+      - ${WORKTREE_PATH:-.}/backend:/app   # monta worktree para instâncias, raiz para main
+  frontend:
+    volumes:
+      - ${WORKTREE_PATH:-.}/frontend:/app
+```
+
+O env file de cada worktree inclui `WORKTREE_PATH=/abs/path/.worktrees/<name>`. Para `main`, `WORKTREE_PATH` não é definido e o fallback `:.` resolve para o diretório do compose file (raiz do projeto).
 
 ## Commands
 

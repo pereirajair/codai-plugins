@@ -247,6 +247,19 @@ case "$ACTION" in
 
         if [ "$INSTANCE" != "main" ]; then
             dump_main_to "$DB"
+            # Warn when docker-compose.yml does not use WORKTREE_PATH — containers would
+            # mount the main project directory instead of the worktree.
+            if ! grep -q 'WORKTREE_PATH' "$COMPOSE_FILE" 2>/dev/null; then
+                echo ""
+                echo "AVISO: docker-compose.yml não usa \${WORKTREE_PATH}."
+                echo "       Os volumes do backend/frontend montarão o projeto principal,"
+                echo "       não o worktree em .worktrees/$INSTANCE."
+                echo "       Adicione ao docker-compose.yml:"
+                echo "         volumes:"
+                echo "           - \${WORKTREE_PATH:-.}/backend:/caminho/no/container"
+                echo "           - \${WORKTREE_PATH:-.}/frontend:/caminho/no/container"
+                echo ""
+            fi
         fi
 
         echo "Subindo containers da instância '$INSTANCE'..."
@@ -303,8 +316,8 @@ case "$ACTION" in
         if [ -f "$ENV_FILE" ]; then
             echo "$ENV_FILE já existe — pulando."
         else
-            printf 'INSTANCE_NAME=%s\nDB_NAME=%s\n' "$NAME" "$DB" > "$ENV_FILE"
-            echo "Env criado: $ENV_FILE  (banco: $DB)"
+            printf 'INSTANCE_NAME=%s\nDB_NAME=%s\nWORKTREE_PATH=%s\n' "$NAME" "$DB" "$WORKTREE_PATH" > "$ENV_FILE"
+            echo "Env criado: $ENV_FILE  (banco: $DB, path: $WORKTREE_PATH)"
         fi
 
         if [ -d "$WORKTREE_PATH" ]; then
