@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# SessionStart hook — injects absolute plugin paths into every Claude Code session.
+# This solves the problem of SKILL.md files referencing ./run.sh (relative paths)
+# which fail when the skill is invoked from a different project directory.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Build plugin script path table from directories that contain a run.sh
+plugin_lines=""
+for dir in "$PLUGIN_ROOT"/*/; do
+    slug="$(basename "$dir")"
+    script="${PLUGIN_ROOT}/${slug}/run.sh"
+    if [ -f "$script" ]; then
+        plugin_lines="${plugin_lines}  ${slug}: ${script}\n"
+    fi
+done
+
+context="<codai-plugin-paths>\nPlugin root: ${PLUGIN_ROOT}\n\nAbsolute paths to plugin scripts:\n${plugin_lines}\nIMPORTANT: When executing any codai plugin command, use the absolute path above — never use \`./run.sh\` (relative paths fail outside the plugin directory).\n</codai-plugin-paths>"
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+context_escaped=$(escape_for_json "$context")
+
+# Platform detection — each platform expects a different JSON shape
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+    printf '{\n  "additional_context": "%s"\n}\n' "$context_escaped"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+    printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context_escaped"
+else
+    printf '{\n  "additionalContext": "%s"\n}\n' "$context_escaped"
+fi
+
+exit 0

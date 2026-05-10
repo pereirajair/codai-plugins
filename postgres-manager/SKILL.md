@@ -1,5 +1,5 @@
 ---
-name: PostgreSQL Manager
+name: postgres-manager
 slug: postgres-manager
 version: 1.1.0
 description: "Manage a shared PostgreSQL Docker container for local dev environments. Handles container lifecycle, database creation/removal, and cross-instance dumps via pg_dump. Joins the shared Docker network created by proxy-manager."

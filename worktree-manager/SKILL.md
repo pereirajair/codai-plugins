@@ -1,5 +1,5 @@
 ---
-name: Worktree Manager
+name: worktree-manager
 slug: worktree-manager
 version: 1.3.0
 description: "Manage Docker-based dev instances and git worktrees. Handles app container lifecycle, database seeding, and proxy route activation. Requires mysql-manager and proxy-manager to be running first."

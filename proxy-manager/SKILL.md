@@ -1,5 +1,5 @@
 ---
-name: Proxy Manager
+name: proxy-manager
 slug: proxy-manager
 version: 1.1.0
 description: "Manage the shared nginx-proxy Docker container and its network connections. Auto-discovers app containers via VIRTUAL_HOST labels. Start this first — it creates the shared Docker network used by mysql-manager and worktree-manager."

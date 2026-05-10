@@ -1,5 +1,5 @@
 ---
-name: Redis Manager
+name: redis-manager
 slug: redis-manager
 version: 1.1.0
 description: "Manage a shared Redis Docker container for local dev environments. Handles container lifecycle, key inspection, and selective data flush. Joins the shared Docker network created by proxy-manager."

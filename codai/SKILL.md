@@ -1,8 +1,8 @@
 ---
-name: Codai
+name: codai
 slug: codai
 version: 1.0.0
-description: "Orchestration skill for the codai-dev local environment. Routes user commands to the right plugin (proxy-manager, mysql-manager, postgres-manager, redis-manager, worktree-manager). Use when the user asks to manage any part of the dev environment without specifying which plugin."
+description: "Orchestration skill for the codai-dev local environment. Routes user commands to the right plugin (proxy-manager, mysql-manager, postgres-manager, redis-manager, worktree-manager, phpmyadmin-manager, pgadmin-manager, redis-commander). Use when the user asks to manage any part of the dev environment without specifying which plugin."
 changelog: Initial release.
 triggers:
   - "subir mysql"
@@ -25,6 +25,12 @@ triggers:
   - "listar instâncias"
   - "status do ambiente"
   - "environment status"
+  - "abrir phpmyadmin"
+  - "start phpmyadmin"
+  - "abrir pgadmin"
+  - "start pgadmin"
+  - "abrir redis commander"
+  - "start redis commander"
   - "codai"
 metadata: {"clawdbot":{"emoji":"⚙️","requires":{"bins":["docker","git"]},"os":["linux","darwin"]}}
 ---
@@ -47,70 +53,75 @@ Orchestration skill for the codai-dev local development environment. Routes user
 | subir/start Redis | `redis-manager` | `./redis/run.sh start` |
 | parar/stop Redis | `redis-manager` | `./redis/run.sh stop` |
 | flush Redis | `redis-manager` | `./redis/run.sh flush` |
-| subir/start proxy | `proxy-manager` | `./nginx-proxy/run.sh start` |
-| conectar proxy `<x>` | `proxy-manager` | `./nginx-proxy/run.sh connect <x>` |
-| criar worktree `<x>` | `worktree-manager` | `./run.sh create-worktree <x>` |
-| subir worktree `<x>` | `worktree-manager` | `./run.sh start <x>` |
-| parar worktree `<x>` | `worktree-manager` | `./run.sh stop <x>` |
-| remover worktree `<x>` | `worktree-manager` | `./run.sh remove-worktree <x>` |
-| listar instâncias | `worktree-manager` | `./run.sh list` |
+| subir/start proxy | `proxy-manager` | `<plugin-root>/proxy-manager/run.sh start` |
+| conectar proxy `<x>` | `proxy-manager` | `<plugin-root>/proxy-manager/run.sh connect <x>` |
+| criar worktree `<x>` | `worktree-manager` | `<plugin-root>/worktree-manager/run.sh create-worktree <x>` |
+| subir worktree `<x>` | `worktree-manager` | `<plugin-root>/worktree-manager/run.sh start <x>` |
+| parar worktree `<x>` | `worktree-manager` | `<plugin-root>/worktree-manager/run.sh stop <x>` |
+| remover worktree `<x>` | `worktree-manager` | `<plugin-root>/worktree-manager/run.sh remove-worktree <x>` |
+| listar instâncias | `worktree-manager` | `<plugin-root>/worktree-manager/run.sh list` |
+| abrir phpMyAdmin | `phpmyadmin-manager` | `<plugin-root>/phpmyadmin-manager/run.sh start` |
+| parar phpMyAdmin | `phpmyadmin-manager` | `<plugin-root>/phpmyadmin-manager/run.sh stop` |
+| abrir pgAdmin | `pgadmin-manager` | `<plugin-root>/pgadmin-manager/run.sh start` |
+| parar pgAdmin | `pgadmin-manager` | `<plugin-root>/pgadmin-manager/run.sh stop` |
+| abrir Redis Commander | `redis-commander` | `<plugin-root>/redis-commander/run.sh start` |
+| parar Redis Commander | `redis-commander` | `<plugin-root>/redis-commander/run.sh stop` |
 | status geral | todos | run each `status` in order |
 
-## Plugin Locations in codai-dev-base
+## Plugin Paths
 
+Plugin scripts use **absolute paths** from the session context (`<codai-plugin-paths>` block).
+Replace `<plugin-root>` with the path shown in that block. Example:
 ```
-codai-dev-base/
-├── run.sh                  # worktree-manager entry point
-├── mysql/run.sh            # mysql-manager
-├── nginx-proxy/run.sh      # proxy-manager
-└── .claude/skills/         # all plugin SKILL.md files
+/home/user/.claude/skills/mysql-manager/run.sh start
 ```
 
-Redis and PostgreSQL are optional extras — install their directories when needed.
+Never use `./run.sh` — relative paths fail when the skill is invoked from a different project.
 
 ## Startup Order
 
 Always follow this sequence:
 
 ```bash
-./nginx-proxy/run.sh start      # 1. creates nginx-proxy_net network
-./mysql/run.sh start            # 2. MySQL joins the network
-./run.sh start main             # 3. main app instance (seeds db, starts containers, connects proxy)
+<plugin-root>/proxy-manager/run.sh start      # 1. creates nginx-proxy_net network
+<plugin-root>/mysql-manager/run.sh start      # 2. MySQL (or postgres-manager / redis-manager)
+<plugin-root>/worktree-manager/run.sh start main  # 3. main app instance
 ```
 
-For Redis or Postgres (if in use):
+Optional web UIs (start after their respective database):
 ```bash
-./redis/run.sh start
-./postgres/run.sh start
+<plugin-root>/phpmyadmin-manager/run.sh start   # MySQL web UI → http://localhost:8081
+<plugin-root>/pgadmin-manager/run.sh start      # PostgreSQL web UI → http://localhost:8082
+<plugin-root>/redis-commander/run.sh start      # Redis web UI → http://localhost:8083
 ```
 
 ## Multi-Step Workflows
 
 ### Create and start a new worktree from scratch
 ```bash
-./run.sh create-worktree <name>   # creates branch worktree/<name>, .worktrees/<name>, .env.worktree-<name>
-./run.sh start <name>             # creates db, dumps codai_main→codai_<name>, starts containers, connects proxy
+<plugin-root>/worktree-manager/run.sh create-worktree <name>
+<plugin-root>/worktree-manager/run.sh start <name>
 ```
 Result: `http://<name>.frontend.localhost` and `http://<name>.backend.localhost`
 
 ### Dump main database to a feature branch
 ```bash
-./mysql/run.sh dump codai_main codai_<name>
+<plugin-root>/mysql-manager/run.sh dump codai_main codai_<name>
 # For PostgreSQL:
-./postgres/run.sh dump codai_main codai_<name>
+<plugin-root>/postgres-manager/run.sh dump codai_main codai_<name>
 ```
 
 ### Remove a worktree completely (confirm first)
 Confirm: "Remover worktree '<name>'? Isso apaga os containers, banco de dados, git worktree (branch `worktree/<name>`) e o env file."
 ```bash
-./run.sh remove-worktree <name>
+<plugin-root>/worktree-manager/run.sh remove-worktree <name>
 ```
 
 ### Full environment status
 ```bash
-./run.sh list                   # worktrees + infra status
-./mysql/run.sh status           # MySQL databases
-./nginx-proxy/run.sh status     # proxy routes
+<plugin-root>/worktree-manager/run.sh list
+<plugin-root>/mysql-manager/run.sh status
+<plugin-root>/proxy-manager/run.sh status
 ```
 
 ## Rules

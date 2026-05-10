@@ -1,5 +1,5 @@
 ---
-name: MySQL Manager
+name: mysql-manager
 slug: mysql-manager
 version: 1.1.0
 description: "Manage a shared MySQL Docker container for local dev environments. Handles container lifecycle, database creation/removal, and cross-instance data dumps. Designed to work alongside proxy-manager and worktree-manager."
