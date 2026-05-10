@@ -1,9 +1,9 @@
 ---
 name: Worktree Manager
 slug: worktree-manager
-version: 1.1.0
+version: 1.2.0
 description: "Manage Docker-based dev instances and git worktrees. Handles app container lifecycle, database seeding, and proxy route activation. Requires mysql-manager and proxy-manager to be running first."
-changelog: "v1.1.0: Split MySQL and proxy lifecycle into separate plugins (mysql-manager, proxy-manager). Worktree-manager now focuses on app instances and git worktrees only."
+changelog: "v1.2.0: Validate instance names (allowlist a-z0-9 and hyphens), add confirmation prompt for remove-worktree, warn when using default MySQL password. v1.1.0: Split MySQL and proxy lifecycle into separate plugins."
 triggers:
   - "start instance"
   - "stop instance"

@@ -30,6 +30,9 @@ COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
 MYSQL_ROOT_PASS="${MYSQL_ROOT_PASS:-secret}"
+if [ "$MYSQL_ROOT_PASS" = "secret" ] && [ "${ACTION:-}" != "list" ]; then
+    echo "Aviso: usando senha MySQL padrão. Defina MYSQL_ROOT_PASS para ambientes que importam."
+fi
 MYSQL_MAIN_DB="${MYSQL_MAIN_DB:-codai_main}"
 PROXY_CONTAINER="${PROXY_CONTAINER:-codai_nginx_proxy}"
 PROJECT_PREFIX="${PROJECT_PREFIX:-codai-dev}"
@@ -47,10 +50,31 @@ env_file() {
     fi
 }
 
+validate_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-z0-9][a-z0-9-]{0,28}[a-z0-9]$|^[a-z0-9]$ ]]; then
+        echo "Erro: nome de instância inválido: '$name'"
+        echo "      Use apenas letras minúsculas, números e hífens (ex: my-feature)."
+        exit 1
+    fi
+}
+
 require_instance() {
     if [ -z "$INSTANCE" ]; then
         echo "Erro: informe o nome da instância. Ex: $0 $ACTION <nome>"
         exit 1
+    fi
+    validate_name "$INSTANCE"
+}
+
+confirm_destructive() {
+    local msg="$1"
+    if [ -t 0 ]; then
+        read -r -p "$msg [s/N] " answer
+        case "$answer" in
+            [sS]) return 0 ;;
+            *) echo "Operação cancelada."; exit 0 ;;
+        esac
     fi
 }
 
@@ -291,6 +315,7 @@ case "$ACTION" in
             echo "Erro: não é possível remover a instância 'main'."
             exit 1
         fi
+        confirm_destructive "Remover worktree '$NAME'? Isso apagará containers, banco de dados, worktree git e env file."
         WORKTREE_PATH="$BASE_DIR/.worktrees/$NAME"
         ENV_FILE="$(env_file "$NAME")"
         DB="$(db_name_for "$NAME")"
