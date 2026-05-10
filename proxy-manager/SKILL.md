@@ -1,9 +1,9 @@
 ---
 name: Proxy Manager
 slug: proxy-manager
-version: 1.0.0
+version: 1.1.0
 description: "Manage the shared nginx-proxy Docker container and its network connections. Auto-discovers app containers via VIRTUAL_HOST labels. Start this first — it creates the shared Docker network used by mysql-manager and worktree-manager."
-changelog: Initial release.
+changelog: "v1.1.0: Pin image to jwilder/nginx-proxy:1.3.1, bind port 80 to 127.0.0.1, restrict auto-connect to PROJECT_PREFIX networks only with confirmation prompt, document Docker socket privilege and restart persistence."
 triggers:
   - "start proxy"
   - "stop proxy"
@@ -93,11 +93,19 @@ Proxy reconnects automatically via `restart: unless-stopped`. If routes are miss
 3. Proxy container must share at least one Docker network with the app container
 4. `./run.sh connect <instance>` connects proxy to the instance's network
 
+## Security Notes
+
+- **Docker socket**: The proxy mounts `/var/run/docker.sock:ro` to auto-discover containers. This is required for VIRTUAL_HOST routing but grants the container read access to Docker daemon state. Only run on trusted development machines.
+- **Port 80**: Bound to `127.0.0.1` — routes are reachable from the host only, not from other machines on the network.
+- **Image provenance**: Pinned to `jwilder/nginx-proxy:1.3.1`. Review image updates before pulling a newer tag.
+
 ## Rules
 
 - Start proxy-manager **before** mysql-manager and worktree-manager.
 - After `worktree-manager start <name>`, always run `proxy-manager connect <name>` to activate routes.
+- `auto-connect` only connects to networks matching `PROJECT_PREFIX` and requires confirmation — use `connect <instance>` for targeted single-instance connections.
 - `stop` does NOT remove the Docker network. Other containers on the network remain reachable.
+- The container uses `restart: unless-stopped` — it survives Docker daemon restarts. Run `./run.sh stop` when done.
 
 ## Related Plugins
 

@@ -24,12 +24,26 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
-MYSQL_ROOT_PASS="${MYSQL_ROOT_PASS:-secret}"
+# MYSQL_ROOT_PASSWORD matches the Docker env var that sets the password on init.
+# MYSQL_ROOT_PASS is kept for backward compatibility; MYSQL_ROOT_PASSWORD takes precedence.
+MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-${MYSQL_ROOT_PASS:-secret}}"
 MYSQL_MAIN_DB="${MYSQL_MAIN_DB:-codai_main}"
+if [ "$MYSQL_ROOT_PASS" = "secret" ] && [ "${ACTION:-}" != "status" ] && [ "${ACTION:-}" != "wait" ]; then
+    echo "Aviso: usando senha MySQL padrão. Defina MYSQL_ROOT_PASSWORD para ambientes com dados reais."
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+validate_db_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-z][a-z0-9_]{0,62}$ ]]; then
+        echo "Erro: nome de banco inválido: '$name'"
+        echo "      Use apenas letras minúsculas, números e underscore (ex: codai_feature)."
+        exit 1
+    fi
+}
 
 is_running() {
     docker ps --filter "name=^${MYSQL_CONTAINER}$" --format '{{.Names}}' | grep -q "^${MYSQL_CONTAINER}$"
@@ -105,6 +119,7 @@ case "$ACTION" in
             echo "Uso: $0 create-db <nome>"
             exit 1
         fi
+        validate_db_name "$DB"
         require_running
         sql -e "CREATE DATABASE IF NOT EXISTS \`$DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         echo "Banco '$DB' pronto."
@@ -116,6 +131,7 @@ case "$ACTION" in
             echo "Uso: $0 drop-db <nome>"
             exit 1
         fi
+        validate_db_name "$DB"
         if [ "$DB" = "$MYSQL_MAIN_DB" ]; then
             echo "Erro: não é possível remover o banco principal '$MYSQL_MAIN_DB'."
             exit 1
@@ -137,6 +153,8 @@ case "$ACTION" in
             echo "Uso: $0 dump <origem> <destino>"
             exit 1
         fi
+        validate_db_name "$SRC"
+        validate_db_name "$DEST"
         require_running
         table_count=$(sql -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$SRC';" || echo 0)
         if [ "$table_count" -eq 0 ]; then
@@ -144,8 +162,10 @@ case "$ACTION" in
             exit 0
         fi
         echo "Copiando $SRC → $DEST..."
-        docker exec "$MYSQL_CONTAINER" sh -c \
-            "mysqldump -uroot -p'$MYSQL_ROOT_PASS' \`$SRC\` | mysql -uroot -p'$MYSQL_ROOT_PASS' \`$DEST\`"
+        docker exec "$MYSQL_CONTAINER" \
+            mysqldump -uroot -p"$MYSQL_ROOT_PASS" "$SRC" | \
+        docker exec -i "$MYSQL_CONTAINER" \
+            mysql -uroot -p"$MYSQL_ROOT_PASS" "$DEST"
         echo "Concluído."
         ;;
 

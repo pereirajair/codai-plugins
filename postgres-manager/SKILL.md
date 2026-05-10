@@ -1,9 +1,9 @@
 ---
 name: PostgreSQL Manager
 slug: postgres-manager
-version: 1.0.0
+version: 1.1.0
 description: "Manage a shared PostgreSQL Docker container for local dev environments. Handles container lifecycle, database creation/removal, and cross-instance dumps via pg_dump. Joins the shared Docker network created by proxy-manager."
-changelog: Initial release.
+changelog: "v1.1.0: Fix dump to avoid sh -c shell injection (now uses two docker exec with -d flag), validate all DB names against strict regex, warn on default password, bind host port to 127.0.0.1, pin image to postgres:16.4-alpine."
 triggers:
   - "start postgres"
   - "stop postgres"
@@ -101,7 +101,10 @@ Backend containers connect to PostgreSQL at:
 
 - Never drop `POSTGRES_MAIN_DB` — it is the source of truth for snapshots.
 - `drop-db` always prompts for confirmation.
-- `stop` preserves data in the Docker volume.
+- Database names are validated against `^[a-z][a-z0-9_]{0,62}$` before any SQL or shell operation.
+- `stop` preserves data in the Docker volume. Use `docker compose down -v` only when you intentionally want to delete persisted data.
+- The container uses `restart: unless-stopped` — it will resume after a Docker daemon restart. Run `./run.sh stop` when done.
+- The host port (`POSTGRES_PORT`) is bound to `127.0.0.1` only. Set a non-default `POSTGRES_PASSWORD` on shared machines.
 - Network is `external: true` — proxy-manager must start first.
 
 ## Related Plugins

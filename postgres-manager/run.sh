@@ -30,10 +30,22 @@ POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-codai_postgres}"
 POSTGRES_USER="${POSTGRES_USER:-codai}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-pgpass}"
 POSTGRES_MAIN_DB="${POSTGRES_MAIN_DB:-codai_main}"
+if [ "$POSTGRES_PASSWORD" = "pgpass" ] && [ "${ACTION:-}" != "status" ] && [ "${ACTION:-}" != "wait" ] && [ "${ACTION:-}" != "psql" ]; then
+    echo "Aviso: usando senha PostgreSQL padrão. Defina POSTGRES_PASSWORD para ambientes com dados reais."
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+validate_db_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-z][a-z0-9_]{0,62}$ ]]; then
+        echo "Erro: nome de banco inválido: '$name'"
+        echo "      Use apenas letras minúsculas, números e underscore (ex: codai_feature)."
+        exit 1
+    fi
+}
 
 is_running() {
     docker ps --filter "name=^${POSTGRES_CONTAINER}$" --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"
@@ -111,6 +123,7 @@ case "$ACTION" in
             echo "Uso: $0 create-db <nome>"
             exit 1
         fi
+        validate_db_name "$DB"
         require_running
         exists=$(psql_cmd -c "SELECT 1 FROM pg_database WHERE datname='$DB';" || echo "")
         if [ -z "$exists" ]; then
@@ -127,6 +140,7 @@ case "$ACTION" in
             echo "Uso: $0 drop-db <nome>"
             exit 1
         fi
+        validate_db_name "$DB"
         if [ "$DB" = "$POSTGRES_MAIN_DB" ]; then
             echo "Erro: não é possível remover o banco principal '$POSTGRES_MAIN_DB'."
             exit 1
@@ -148,10 +162,14 @@ case "$ACTION" in
             echo "Uso: $0 dump <origem> <destino>"
             exit 1
         fi
+        validate_db_name "$SRC"
+        validate_db_name "$DEST"
         require_running
         echo "Copiando $SRC → $DEST..."
         docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
-            sh -c "pg_dump -U $POSTGRES_USER $SRC | psql -U $POSTGRES_USER $DEST"
+            pg_dump -U "$POSTGRES_USER" -d "$SRC" | \
+        docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
+            psql -U "$POSTGRES_USER" -d "$DEST"
         echo "Concluído."
         ;;
 
@@ -162,9 +180,10 @@ case "$ACTION" in
 
     psql)
         DB="${2:-$POSTGRES_MAIN_DB}"
+        validate_db_name "$DB"
         require_running
         docker exec -it -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
-            psql -U "$POSTGRES_USER" "$DB"
+            psql -U "$POSTGRES_USER" -d "$DB"
         ;;
 
     *)

@@ -148,9 +148,20 @@ case "$ACTION" in
 
     auto-connect)
         require_running
+        mapfile -t nets < <(docker network ls --format '{{.Name}}' | grep "^${PROJECT_PREFIX}-.*_default$")
+        if [ "${#nets[@]}" -eq 0 ]; then
+            echo "Nenhuma rede '${PROJECT_PREFIX}-*_default' encontrada."
+            exit 0
+        fi
+        echo "Redes encontradas com prefixo '${PROJECT_PREFIX}':"
+        for net in "${nets[@]}"; do echo "  $net"; done
+        read -r -p "Conectar proxy a essas ${#nets[@]} rede(s)? [s/N] " confirm
+        if [[ ! "$confirm" =~ ^[sS]$ ]]; then
+            echo "Cancelado."
+            exit 0
+        fi
         connected=0
-        for net in $(docker network ls --format '{{.Name}}' | grep "_default$"); do
-            [[ "$net" == "nginx-proxy_default" ]] && continue
+        for net in "${nets[@]}"; do
             if ! is_connected "$net"; then
                 docker network connect "$net" "$PROXY_CONTAINER" 2>/dev/null || true
                 echo "Conectado: $net"

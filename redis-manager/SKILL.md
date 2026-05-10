@@ -1,9 +1,9 @@
 ---
 name: Redis Manager
 slug: redis-manager
-version: 1.0.0
+version: 1.1.0
 description: "Manage a shared Redis Docker container for local dev environments. Handles container lifecycle, key inspection, and selective data flush. Joins the shared Docker network created by proxy-manager."
-changelog: Initial release.
+changelog: "v1.1.0: Fix flush-db to use single redis-cli -n connection (was flushing wrong DB), validate DB number input, warn on default password, bind host port to 127.0.0.1, pin image to redis:7.4-alpine."
 triggers:
   - "start redis"
   - "stop redis"
@@ -91,7 +91,10 @@ Backend containers connect to Redis at:
 ## Rules
 
 - `flush` always prompts for confirmation — it deletes all data in all databases.
-- `stop` preserves data in the Docker volume. Use `docker compose down -v` only to wipe.
+- `flush-db <n>` flushes exactly database N using a single `-n` connection; confirm text always matches the database being flushed.
+- `stop` preserves data in the Docker volume. Use `docker compose down -v` only when you intentionally want to delete persisted data.
+- The container uses `restart: unless-stopped` — it will resume after a Docker daemon restart. Run `./run.sh stop` when done.
+- The host port (`REDIS_PORT`) is bound to `127.0.0.1` only. Set a non-default `REDIS_PASSWORD` on shared machines.
 - Redis connects to the `nginx-proxy_net` network as `external: true` — proxy-manager must start first.
 
 ## Related Plugins

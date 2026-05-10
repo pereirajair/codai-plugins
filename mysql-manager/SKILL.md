@@ -1,9 +1,9 @@
 ---
 name: MySQL Manager
 slug: mysql-manager
-version: 1.0.0
+version: 1.1.0
 description: "Manage a shared MySQL Docker container for local dev environments. Handles container lifecycle, database creation/removal, and cross-instance data dumps. Designed to work alongside proxy-manager and worktree-manager."
-changelog: Initial release.
+changelog: "v1.1.0: Fix dump to avoid sh -c/backtick shell injection (now uses two docker exec), validate all DB names against strict regex, unify password variable (MYSQL_ROOT_PASSWORD takes precedence over MYSQL_ROOT_PASS), warn on default password, bind host port to 127.0.0.1, pin image to mysql:8.0.36."
 triggers:
   - "start mysql"
   - "stop mysql"
@@ -84,19 +84,23 @@ Start MySQL **before** starting any app instances:
 
 Set via environment variables or a `.env` file in `mysql-manager/`:
 
-| Variable          | Default        | Purpose                          |
-|-------------------|----------------|----------------------------------|
-| `MYSQL_CONTAINER` | `codai_db`     | Container name                   |
-| `MYSQL_ROOT_PASS` | `secret`       | MySQL root password              |
-| `MYSQL_MAIN_DB`   | `codai_main`   | Primary database name            |
-| `MYSQL_PORT`      | `3307`         | Host port (maps to 3306)         |
-| `CODAI_NETWORK`   | `nginx-proxy_net` | Shared Docker network name    |
+| Variable               | Default           | Purpose                          |
+|------------------------|-------------------|----------------------------------|
+| `MYSQL_CONTAINER`      | `codai_db`        | Container name                   |
+| `MYSQL_ROOT_PASSWORD`  | `secret`          | MySQL root password (primary)    |
+| `MYSQL_ROOT_PASS`      | *(fallback)*      | Legacy alias; `MYSQL_ROOT_PASSWORD` takes precedence |
+| `MYSQL_MAIN_DB`        | `codai_main`      | Primary database name            |
+| `MYSQL_PORT`           | `3307`            | Host port (maps to 3306)         |
+| `CODAI_NETWORK`        | `nginx-proxy_net` | Shared Docker network name       |
 
 ## Rules
 
 - Never drop `MYSQL_MAIN_DB` — it is the source of truth for snapshots.
 - The `drop-db` command always prompts for confirmation.
-- `stop` preserves data in the Docker volume. Use `docker compose down -v` only to wipe data intentionally.
+- Database names are validated against `^[a-z][a-z0-9_]{0,62}$` before any SQL or shell operation.
+- `stop` preserves data in the Docker volume. Use `docker compose down -v` only when you intentionally want to delete persisted data.
+- The container uses `restart: unless-stopped` — it will resume after a Docker daemon restart. Run `./run.sh stop` when done.
+- The host port (`MYSQL_PORT`) is bound to `127.0.0.1` only. Set a non-default `MYSQL_ROOT_PASSWORD` on shared machines.
 - The container name (`codai_db`) is the hostname used by backend apps to connect.
 
 ## Related Plugins

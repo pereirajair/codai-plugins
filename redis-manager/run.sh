@@ -25,6 +25,9 @@ COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 
 REDIS_CONTAINER="${REDIS_CONTAINER:-codai_redis}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-redispass}"
+if [ "$REDIS_PASSWORD" = "redispass" ] && [ "${ACTION:-}" != "status" ] && [ "${ACTION:-}" != "wait" ] && [ "${ACTION:-}" != "cli" ]; then
+    echo "Aviso: usando senha Redis padrão. Defina REDIS_PASSWORD para ambientes com dados reais."
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -117,10 +120,14 @@ case "$ACTION" in
             echo "Uso: $0 flush-db <número-do-banco>"
             exit 1
         fi
+        if [[ ! "$DB_NUM" =~ ^[0-9]+$ ]]; then
+            echo "Erro: número de banco inválido: '$DB_NUM'. Use um inteiro não-negativo."
+            exit 1
+        fi
         require_running
         read -r -p "Limpar banco $DB_NUM do Redis? [s/N] " confirm
         if [[ "$confirm" =~ ^[sS]$ ]]; then
-            redis_cmd SELECT "$DB_NUM" && redis_cmd FLUSHDB
+            docker exec "$REDIS_CONTAINER" redis-cli -a "$REDIS_PASSWORD" --no-auth-warning -n "$DB_NUM" FLUSHDB 2>/dev/null
             echo "Banco $DB_NUM limpo."
         else
             echo "Cancelado."
