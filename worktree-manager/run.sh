@@ -29,9 +29,10 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
-MYSQL_ROOT_PASS="${MYSQL_ROOT_PASS:-secret}"
+# MYSQL_ROOT_PASSWORD alinha com o padrão do mysql-manager; MYSQL_ROOT_PASS mantido por compatibilidade.
+MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-${MYSQL_ROOT_PASS:-secret}}"
 if [ "$MYSQL_ROOT_PASS" = "secret" ] && [ "${ACTION:-}" != "list" ]; then
-    echo "Aviso: usando senha MySQL padrão. Defina MYSQL_ROOT_PASS para ambientes que importam."
+    echo "Aviso: usando senha MySQL padrão. Defina MYSQL_ROOT_PASSWORD para ambientes que importam."
 fi
 MYSQL_MAIN_DB="${MYSQL_MAIN_DB:-codai_main}"
 PROXY_CONTAINER="${PROXY_CONTAINER:-codai_nginx_proxy}"
@@ -55,6 +56,15 @@ validate_name() {
     if [[ ! "$name" =~ ^[a-z0-9][a-z0-9-]{0,28}[a-z0-9]$|^[a-z0-9]$ ]]; then
         echo "Erro: nome de instância inválido: '$name'"
         echo "      Use apenas letras minúsculas, números e hífens (ex: my-feature)."
+        exit 1
+    fi
+}
+
+validate_db_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-z][a-z0-9_]{0,62}$ ]]; then
+        echo "Erro: nome de banco inválido: '$name'"
+        echo "      Use apenas letras minúsculas, números e underscore."
         exit 1
     fi
 }
@@ -110,6 +120,7 @@ require_mysql() {
 
 ensure_db() {
     local db="$1"
+    validate_db_name "$db"
     docker exec "$MYSQL_CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASS" \
         -e "CREATE DATABASE IF NOT EXISTS \`$db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
         2>/dev/null
@@ -117,13 +128,16 @@ ensure_db() {
 
 dump_main_to() {
     local dest_db="$1"
+    validate_db_name "$dest_db"
     local table_count
     table_count=$(docker exec "$MYSQL_CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASS" -sN \
         -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$MYSQL_MAIN_DB';" 2>/dev/null || echo 0)
     if [ "$table_count" -gt 0 ]; then
         echo "Copiando $MYSQL_MAIN_DB → $dest_db..."
-        docker exec "$MYSQL_CONTAINER" sh -c \
-            "mysqldump -uroot -p'$MYSQL_ROOT_PASS' \`$MYSQL_MAIN_DB\` | mysql -uroot -p'$MYSQL_ROOT_PASS' \`$dest_db\`"
+        docker exec "$MYSQL_CONTAINER" \
+            mysqldump -uroot -p"$MYSQL_ROOT_PASS" "$MYSQL_MAIN_DB" | \
+        docker exec -i "$MYSQL_CONTAINER" \
+            mysql -uroot -p"$MYSQL_ROOT_PASS" "$dest_db"
         echo "Banco $dest_db atualizado com snapshot de $MYSQL_MAIN_DB."
     else
         echo "$MYSQL_MAIN_DB está vazio — $dest_db iniciará com banco limpo."
@@ -219,6 +233,7 @@ case "$ACTION" in
 
     start)
         INSTANCE="${INSTANCE:-main}"
+        [ "$INSTANCE" != "main" ] && validate_name "$INSTANCE"
         ENV_FILE="$(env_file "$INSTANCE")"
         if [ ! -f "$ENV_FILE" ]; then
             echo "Erro: $ENV_FILE não encontrado."
@@ -248,6 +263,7 @@ case "$ACTION" in
 
     stop)
         INSTANCE="${INSTANCE:-main}"
+        [ "$INSTANCE" != "main" ] && validate_name "$INSTANCE"
         echo "Parando containers da instância '$INSTANCE' (banco persiste)..."
         compose_down "$INSTANCE"
         echo "Instância '$INSTANCE' parada."
@@ -255,6 +271,7 @@ case "$ACTION" in
 
     logs)
         INSTANCE="${INSTANCE:-main}"
+        [ "$INSTANCE" != "main" ] && validate_name "$INSTANCE"
         ENV_FILE="$(env_file "$INSTANCE")"
         docker compose \
             --project-name "${PROJECT_PREFIX}-$INSTANCE" \
@@ -265,6 +282,7 @@ case "$ACTION" in
 
     restart)
         INSTANCE="${INSTANCE:-main}"
+        [ "$INSTANCE" != "main" ] && validate_name "$INSTANCE"
         "$0" stop "$INSTANCE"
         sleep 2
         "$0" start "$INSTANCE"
@@ -319,6 +337,7 @@ case "$ACTION" in
         WORKTREE_PATH="$BASE_DIR/.worktrees/$NAME"
         ENV_FILE="$(env_file "$NAME")"
         DB="$(db_name_for "$NAME")"
+        validate_db_name "$DB"
 
         echo "Parando containers da instância '$NAME'..."
         compose_down "$NAME"
