@@ -1,6 +1,6 @@
 {
   "name": "codai-plugins",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "module",
   "main": ".opencode/plugins/codai-plugins.js"
 }

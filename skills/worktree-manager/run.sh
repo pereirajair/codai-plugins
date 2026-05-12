@@ -26,10 +26,10 @@ set -euo pipefail
 ACTION="${1:-list}"
 INSTANCE="${2:-}"
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 # PROJECT_DIR is where worktrees and env files live — defaults to cwd so the
 # plugin works correctly when invoked from the user's project directory.
 PROJECT_DIR="${PROJECT_DIR:-$PWD}"
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
 # MYSQL_ROOT_PASSWORD alinha com o padrão do mysql-manager; MYSQL_ROOT_PASS mantido por compatibilidade.
