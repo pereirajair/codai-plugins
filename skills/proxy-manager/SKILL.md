@@ -1,9 +1,9 @@
 ---
 name: proxy-manager
 slug: proxy-manager
-version: 1.1.0
+version: 1.2.0
 description: "Manage the shared nginx-proxy Docker container and its network connections. Auto-discovers app containers via VIRTUAL_HOST labels. Start this first — it creates the shared Docker network used by mysql-manager and worktree-manager."
-changelog: "v1.1.0: Pin image to jwilder/nginx-proxy:1.3.1, bind port 80 to 127.0.0.1, restrict auto-connect to PROJECT_PREFIX networks only with confirmation prompt, document Docker socket privilege and restart persistence."
+changelog: "v1.2.0: Add WebSocket (ws://) support via vhost.d mount — sets proxy_read_timeout/proxy_send_timeout to 86400s so HMR connections survive long dev sessions. v1.1.0: Pin image to jwilder/nginx-proxy:1.3.1, bind port 80 to 127.0.0.1, restrict auto-connect to PROJECT_PREFIX networks only with confirmation prompt."
 triggers:
   - "start proxy"
   - "stop proxy"
@@ -92,6 +92,20 @@ Proxy reconnects automatically via `restart: unless-stopped`. If routes are miss
 2. `jwilder/nginx-proxy` reads Docker socket events and generates nginx config
 3. Proxy container must share at least one Docker network with the app container
 4. `./run.sh connect <instance>` connects proxy to the instance's network
+
+## WebSocket / Hot-Reload Support
+
+`jwilder/nginx-proxy` forwards `Upgrade` and `Connection` headers natively via its nginx template — `ws://` connections work without extra labels on the app container.
+
+The only extra configuration needed is a long read timeout, since HMR connections (Vite, webpack-dev-server, Next.js Fast Refresh) stay open for the entire dev session:
+
+```
+vhost.d/default
+  proxy_read_timeout 86400s   # 24 h
+  proxy_send_timeout 86400s
+```
+
+This file is bind-mounted at `/etc/nginx/vhost.d/default` and applies to all virtual hosts automatically.
 
 ## Security Notes
 

@@ -27,6 +27,9 @@ ACTION="${1:-list}"
 INSTANCE="${2:-}"
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
+# PROJECT_DIR is where worktrees and env files live — defaults to cwd so the
+# plugin works correctly when invoked from the user's project directory.
+PROJECT_DIR="${PROJECT_DIR:-$PWD}"
 
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
 # MYSQL_ROOT_PASSWORD alinha com o padrão do mysql-manager; MYSQL_ROOT_PASS mantido por compatibilidade.
@@ -45,9 +48,9 @@ PROJECT_PREFIX="${PROJECT_PREFIX:-codai-dev}"
 env_file() {
     local name="$1"
     if [ "$name" = "main" ]; then
-        echo "$BASE_DIR/.env.base"
+        echo "$PROJECT_DIR/.env.base"
     else
-        echo "$BASE_DIR/.env.worktree-$name"
+        echo "$PROJECT_DIR/.env.worktree-$name"
     fi
 }
 
@@ -198,9 +201,9 @@ case "$ACTION" in
         echo ""
 
         shopt -s nullglob
-        for env_f in "$BASE_DIR/.env.base" "$BASE_DIR"/.env.worktree-*; do
+        for env_f in "$PROJECT_DIR/.env.base" "$PROJECT_DIR"/.env.worktree-*; do
             [ -f "$env_f" ] || continue
-            if [ "$env_f" = "$BASE_DIR/.env.base" ]; then
+            if [ "$env_f" = "$PROJECT_DIR/.env.base" ]; then
                 name="main"
             else
                 name="${env_f##*/.env.worktree-}"
@@ -215,8 +218,8 @@ case "$ACTION" in
             fi
             if [ "$name" = "main" ]; then
                 extra="db: $db  (instância principal)"
-            elif [ -d "$BASE_DIR/.worktrees/$name" ]; then
-                branch=$(git -C "$BASE_DIR/.worktrees/$name" branch --show-current 2>/dev/null || echo "?")
+            elif [ -d "$PROJECT_DIR/.worktrees/$name" ]; then
+                branch=$(git -C "$PROJECT_DIR/.worktrees/$name" branch --show-current 2>/dev/null || echo "?")
                 extra="db: $db  branch: $branch"
             else
                 extra="db: $db  worktree ausente"
@@ -308,7 +311,7 @@ case "$ACTION" in
             echo "Erro: 'main' é a instância principal e não pode ser um worktree."
             exit 1
         fi
-        WORKTREE_PATH="$BASE_DIR/.worktrees/$NAME"
+        WORKTREE_PATH="$PROJECT_DIR/.worktrees/$NAME"
         ENV_FILE="$(env_file "$NAME")"
         SAFE=$(echo "$NAME" | tr '-' '_' | tr '[:upper:]' '[:lower:]')
         DB="${MYSQL_MAIN_DB%%_*}_$SAFE"
@@ -323,12 +326,12 @@ case "$ACTION" in
         if [ -d "$WORKTREE_PATH" ]; then
             echo "Worktree já existe em $WORKTREE_PATH — pulando."
         else
-            mkdir -p "$BASE_DIR/.worktrees"
+            mkdir -p "$PROJECT_DIR/.worktrees"
             BRANCH="worktree/$NAME"
-            if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-                git worktree add "$WORKTREE_PATH" "$BRANCH"
+            if git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+                git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" "$BRANCH"
             else
-                git worktree add -b "$BRANCH" "$WORKTREE_PATH"
+                git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_PATH"
             fi
             echo "Worktree criado: $WORKTREE_PATH  (branch: $BRANCH)"
         fi
@@ -347,7 +350,7 @@ case "$ACTION" in
             exit 1
         fi
         confirm_destructive "Remover worktree '$NAME'? Isso apagará containers, banco de dados, worktree git e env file."
-        WORKTREE_PATH="$BASE_DIR/.worktrees/$NAME"
+        WORKTREE_PATH="$PROJECT_DIR/.worktrees/$NAME"
         ENV_FILE="$(env_file "$NAME")"
         DB="$(db_name_for "$NAME")"
         validate_db_name "$DB"
@@ -362,8 +365,8 @@ case "$ACTION" in
         fi
 
         if [ -d "$WORKTREE_PATH" ]; then
-            git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || rm -rf "$WORKTREE_PATH"
-            git worktree prune
+            git -C "$PROJECT_DIR" worktree remove "$WORKTREE_PATH" --force 2>/dev/null || rm -rf "$WORKTREE_PATH"
+            git -C "$PROJECT_DIR" worktree prune
             echo "Worktree removido: $WORKTREE_PATH"
         else
             echo "Worktree não encontrado: $WORKTREE_PATH"

@@ -8,6 +8,7 @@ services:
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - proxy-data:/etc/nginx/conf.d
+      - ./vhost.d:/etc/nginx/vhost.d:ro
     networks:
       - codai_net
 
