@@ -17,7 +17,7 @@
 # Variáveis de configuração (com defaults):
 #   MYSQL_CONTAINER   — container MySQL (padrão: codai_db)
 #   MYSQL_ROOT_PASS   — senha root MySQL (padrão: secret)
-#   MYSQL_MAIN_DB     — banco fonte para snapshots (padrão: codai_main)
+#   MYSQL_MAIN_DB     — banco fonte para snapshots (padrão: lido de .env.base; fallback: codai_main)
 #   PROXY_CONTAINER   — container nginx-proxy (padrão: codai_nginx_proxy)
 #   PROJECT_PREFIX    — prefixo do projeto docker compose (padrão: codai-dev)
 
@@ -36,6 +36,14 @@ MYSQL_CONTAINER="${MYSQL_CONTAINER:-codai_db}"
 MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-${MYSQL_ROOT_PASS:-secret}}"
 if [ "$MYSQL_ROOT_PASS" = "secret" ] && [ "${ACTION:-}" != "list" ]; then
     echo "Aviso: usando senha MySQL padrão. Defina MYSQL_ROOT_PASSWORD para ambientes que importam."
+fi
+# MYSQL_MAIN_DB: banco de origem para snapshots de novas instâncias.
+# Prioridade: variável de ambiente > MYSQL_MAIN_DB em .env.base > codai_main (default).
+# Para projetos com nome de banco diferente (ex: gestor_main), adicione ao .env.base:
+#   MYSQL_MAIN_DB=gestor_main
+if [ -z "${MYSQL_MAIN_DB:-}" ] && [ -f "$PROJECT_DIR/.env.base" ]; then
+    _proj_main_db=$(grep '^MYSQL_MAIN_DB=' "$PROJECT_DIR/.env.base" 2>/dev/null | cut -d= -f2 | tr -d ' \r' || true)
+    [ -n "$_proj_main_db" ] && MYSQL_MAIN_DB="$_proj_main_db"
 fi
 MYSQL_MAIN_DB="${MYSQL_MAIN_DB:-codai_main}"
 PROXY_CONTAINER="${PROXY_CONTAINER:-codai_nginx_proxy}"

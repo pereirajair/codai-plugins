@@ -1,9 +1,9 @@
 ---
 name: worktree-manager
 slug: worktree-manager
-version: 1.5.0
+version: 1.5.2
 description: "Manage Docker-based dev instances and git worktrees. Handles app container lifecycle, database seeding, and proxy route activation. Requires mysql-manager and proxy-manager to be running first."
-changelog: "v1.5.0: Add PROJECT_DIR variable (defaults to $PWD) so worktrees and env files are created in the user's project directory instead of the plugin cache dir. v1.4.0: Write WORKTREE_PATH to env file on create-worktree; warn when docker-compose.yml does not use WORKTREE_PATH (bug that caused worktree containers to mount the main project dir). v1.3.0: Fix dump_main_to to avoid sh -c/backtick shell injection (two docker exec), validate DB names before all SQL ops, validate instance name on all commands, align password var with MYSQL_ROOT_PASSWORD. v1.2.0: Validate instance names, add remove-worktree confirmation, warn on default password. v1.1.0: Split MySQL and proxy lifecycle into separate plugins."
+changelog: "v1.5.2: MYSQL_MAIN_DB now read from .env.base when not set in environment, making the source DB per-project configurable (e.g. gestor_main instead of codai_main). v1.5.1: Resolve COMPOSE_FILE from PROJECT_DIR instead of BASE_DIR. v1.5.0: Add PROJECT_DIR variable (defaults to $PWD) so worktrees and env files are created in the user's project directory instead of the plugin cache dir. v1.4.0: Write WORKTREE_PATH to env file on create-worktree; warn when docker-compose.yml does not use WORKTREE_PATH (bug that caused worktree containers to mount the main project dir). v1.3.0: Fix dump_main_to to avoid sh -c/backtick shell injection (two docker exec), validate DB names before all SQL ops, validate instance name on all commands, align password var with MYSQL_ROOT_PASSWORD. v1.2.0: Validate instance names, add remove-worktree confirmation, warn on default password. v1.1.0: Split MySQL and proxy lifecycle into separate plugins."
 triggers:
   - "start instance"
   - "stop instance"
