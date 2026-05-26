@@ -2,3 +2,5 @@
 # nginx-proxy already forwards Upgrade/Connection headers via its template.
 proxy_read_timeout 86400s;
 proxy_send_timeout 86400s;
+
+client_max_body_size 100m;

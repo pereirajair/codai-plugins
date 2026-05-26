@@ -9,7 +9,7 @@
     {
       "name": "codai-plugins",
       "description": "Local dev environment manager: proxy, mysql, postgres, redis, phpmyadmin, pgadmin, redis-commander, worktrees",
-      "version": "1.5.0",
+      "version": "1.5.3",
       "source": "./",
       "author": {
         "name": "Jair Pereira",
