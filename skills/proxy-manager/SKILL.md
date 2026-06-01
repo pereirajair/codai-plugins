@@ -1,9 +1,9 @@
 ---
 name: proxy-manager
 slug: proxy-manager
-version: 1.3.0
+version: 1.4.0
 description: "Manage the shared nginx-proxy Docker container and its network connections. Auto-discovers app containers via VIRTUAL_HOST labels. Start this first — it creates the shared Docker network used by mysql-manager and worktree-manager."
-changelog: "v1.3.0: Set client_max_body_size to 100m in vhost.d/default so file uploads are not rejected by nginx-proxy. v1.2.0: Add WebSocket (ws://) support via vhost.d mount — sets proxy_read_timeout/proxy_send_timeout to 86400s so HMR connections survive long dev sessions. v1.1.0: Pin image to jwilder/nginx-proxy:1.3.1, bind port 80 to 127.0.0.1, restrict auto-connect to PROJECT_PREFIX networks only with confirmation prompt."
+changelog: "v1.4.0: Bind nginx-proxy port 80 to 0.0.0.0 (all interfaces) instead of 127.0.0.1 — allows access from Docker networks and external hosts. v1.3.0: Set client_max_body_size to 100m in vhost.d/default so file uploads are not rejected by nginx-proxy. v1.2.0: Add WebSocket (ws://) support via vhost.d mount — sets proxy_read_timeout/proxy_send_timeout to 86400s so HMR connections survive long dev sessions. v1.1.0: Pin image to jwilder/nginx-proxy:1.3.1, bind port 80 to 127.0.0.1, restrict auto-connect to PROJECT_PREFIX networks only with confirmation prompt."
 triggers:
   - "start proxy"
   - "stop proxy"

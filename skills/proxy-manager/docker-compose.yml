@@ -4,7 +4,7 @@ services:
     container_name: ${PROXY_CONTAINER:-codai_nginx_proxy}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:80:80"
+      - "0.0.0.0:80:80"
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - proxy-data:/etc/nginx/conf.d
