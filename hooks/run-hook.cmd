@@ -1,17 +1,14 @@
+:;#!/bin/sh
+:;SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+:;HOOK_NAME="$1"
+:;shift
+:;exec bash "${SCRIPT_DIR}/${HOOK_NAME}" "$@"
 @echo off
-:: run-hook.cmd — cross-platform hook runner (Windows batch + Unix shell polyglot)
-:: On Unix: the shell skips the batch header and runs the shell section.
-:: On Windows: locates bash and executes the named hook script.
-goto :Windows
-: << 'BATCH_END'
-#!/usr/bin/env sh
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK_NAME="$1"
-shift
-exec bash "${SCRIPT_DIR}/${HOOK_NAME}" "$@"
-BATCH_END
-
-:Windows
+:: run-hook.cmd - cross-platform hook runner (Windows batch + Unix shell polyglot)
+:: On Unix: sh runs the ":;" lines above (":" is a no-op, so the rest of each
+:: line executes as a normal command) and execs into bash before reaching here.
+:: On Windows: cmd treats every ":"-prefixed line above as a label and skips
+:: it, falling through to the batch logic below.
 setlocal
 set HOOK_NAME=%1
 if "%HOOK_NAME%"=="" (
